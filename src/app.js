@@ -1,4 +1,4 @@
-// Sovereign-Gig Core Logic - Robust Version
+// Sovereign-Gig Core Logic - Persistence Fix
 
 const freelancerProfile = {
     min_budget: 500,
@@ -6,9 +6,18 @@ const freelancerProfile = {
     dealbreakers: ["unpaid", "equity only", "homework", "test task", "logo"]
 };
 
+// --- Storage Keys ---
+const STORAGE_KEY = 'sovereign_profile_v1';
+
 // --- Initialization ---
+console.log("Sovereign-Gig: Script running...");
+
+// Run immediately
+loadLocalProfile();
+
+// Also run on load
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("Sovereign-Gig: DOM Loaded. Initializing...");
+    console.log("Sovereign-Gig: DOM Fully Loaded.");
     loadLocalProfile();
     setupWeb3();
 });
@@ -16,16 +25,27 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- Local Storage Management ---
 function loadLocalProfile() {
     try {
-        const saved = localStorage.getItem('sovereign_profile');
+        const saved = localStorage.getItem(STORAGE_KEY);
+        console.log("Attempting to load profile...", saved ? "Data found" : "No data found");
+        
         if (saved) {
             const data = JSON.parse(saved);
-            document.getElementById('bankHolder').innerText = data.holder || 'Freelancer Name';
-            document.getElementById('bankAccount').innerText = data.account || 'XXXX XXXX XXXX';
-            document.getElementById('bankSwift').innerText = data.swift || 'XXXXXXXX';
-            document.getElementById('viewPayLink').innerText = data.payLink || 'https://wise.com/pay/me/yourlink';
+            
+            // Update View Elements safely
+            const updateText = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.innerText = val;
+            };
+
+            updateText('bankHolder', data.holder || 'Freelancer Name');
+            updateText('bankAccount', data.account || 'XXXX XXXX XXXX');
+            updateText('bankSwift', data.swift || 'XXXXXXXX');
+            updateText('viewPayLink', data.payLink || 'https://wise.com/pay/me/yourlink');
+            
+            console.log("Profile updated from storage:", data);
         }
     } catch (e) {
-        console.error("Failed to load profile from LocalStorage", e);
+        console.error("Failed to load profile", e);
     }
 }
 
@@ -37,6 +57,7 @@ window.toggleEditMode = function() {
     portal.classList.toggle('edit-mode');
     
     if (portal.classList.contains('edit-mode')) {
+        // Pre-fill inputs from current view
         document.getElementById('editHolder').value = document.getElementById('bankHolder').innerText;
         document.getElementById('editAccount').value = document.getElementById('bankAccount').innerText;
         document.getElementById('editSwift').value = document.getElementById('bankSwift').innerText;
@@ -53,12 +74,15 @@ window.saveLocalProfile = function() {
             payLink: document.getElementById('editPayLink').value
         };
         
-        localStorage.setItem('sovereign_profile', JSON.stringify(data));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        console.log("Data saved to LocalStorage:", data);
+        
         loadLocalProfile();
         toggleEditMode();
-        alert("Profile saved locally! Data stays on this device.");
+        alert("Profile saved to this device!");
     } catch (e) {
-        alert("Error saving profile: " + e.message);
+        console.error("Save failed", e);
+        alert("Error saving: " + e.message);
     }
 };
 
@@ -111,29 +135,7 @@ function setupWeb3() {
                 console.error("Wallet connection failed", err);
             }
         } else {
-            alert("MetaMask not detected.");
+            console.log("No Ethereum provider found.");
         }
     };
 }
-
-window.releaseFunds = async function() {
-    if (!signer) return alert("Connect wallet first.");
-    const addr = document.getElementById('escrowAddress').value;
-    if (!ethers.isAddress(addr)) return alert("Invalid address.");
-    try {
-        const contract = new ethers.Contract(addr, ["function releaseFunds() external"], signer);
-        await contract.releaseFunds();
-        alert("Transaction sent!");
-    } catch (e) { alert("Error: " + e.message); }
-};
-
-window.refundClient = async function() {
-    if (!signer) return alert("Connect wallet first.");
-    const addr = document.getElementById('escrowAddress').value;
-    if (!ethers.isAddress(addr)) return alert("Invalid address.");
-    try {
-        const contract = new ethers.Contract(addr, ["function refundClient() external"], signer);
-        await contract.refundClient();
-        alert("Transaction sent!");
-    } catch (e) { alert("Error: " + e.message); }
-};
