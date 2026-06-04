@@ -6,6 +6,11 @@
     <title>Sovereign-Gig Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+    <style>
+        .edit-mode .view-item { display: none; }
+        .edit-mode .edit-item { display: block; }
+        .edit-item { display: none; }
+    </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
     <div class="container mx-auto px-4 py-8 max-w-6xl">
@@ -20,113 +25,92 @@
                 <h2 class="text-2xl font-bold mb-4 flex items-center justify-center text-blue-300">
                     <span class="mr-3 text-3xl">🔍</span> Signal Filter
                 </h2>
-                <p class="text-center text-gray-400 mb-6">Analyze job descriptions for quality and payment risk before you commit.</p>
-                <textarea id="jobInput" class="w-full h-40 bg-gray-900 border border-gray-700 rounded-xl p-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-4 transition-all" placeholder="Paste job description or client email here..."></textarea>
+                <textarea id="jobInput" class="w-full h-40 bg-gray-900 border border-gray-700 rounded-xl p-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-4" placeholder="Paste job description here..."></textarea>
                 <div class="flex justify-center">
                     <button onclick="analyzeSignal()" class="w-full md:w-64 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl transition duration-200 shadow-lg text-lg">
                         Analyze Opportunity
                     </button>
                 </div>
-                <div id="signalResult" class="mt-6 hidden p-6 rounded-xl border animate-pulse">
-                    <!-- Results -->
-                </div>
+                <div id="signalResult" class="mt-6 hidden p-6 rounded-xl border animate-pulse"></div>
             </section>
         </div>
 
         <!-- BOTTOM: Payment Portals Side by Side -->
         <div class="grid lg:grid-cols-2 gap-8">
             
-            <!-- LEFT: Crypto Escrow (Secondary Option) -->
+            <!-- LEFT: Crypto Escrow -->
             <section class="bg-gray-800 p-8 rounded-2xl border border-gray-700 shadow-xl flex flex-col justify-between">
                 <div>
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-2xl font-bold flex items-center text-gray-300">
-                            <span class="mr-3 text-3xl">🛡️</span> Web3 Escrow
-                        </h2>
-                        <span class="text-[10px] bg-gray-700 text-gray-400 px-3 py-1 rounded uppercase tracking-widest">Optional</span>
-                    </div>
-                    <p class="text-sm text-gray-500 mb-8">For crypto-native clients who prefer smart-contract security and instant settlement.</p>
-
+                    <h2 class="text-2xl font-bold mb-6 flex items-center text-gray-300">
+                        <span class="mr-3 text-3xl">🛡️</span> Web3 Escrow
+                    </h2>
                     <div id="walletSection" class="mb-6 flex items-center justify-between p-4 bg-gray-900 rounded-xl border border-gray-700">
-                        <div>
-                            <p id="walletStatus" class="text-xs text-gray-400 font-mono tracking-tighter">Wallet Disconnected</p>
-                        </div>
-                        <button id="connectWallet" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-6 rounded-lg text-xs transition duration-200">
-                            Connect MetaMask
-                        </button>
+                        <p id="walletStatus" class="text-xs text-gray-400 font-mono">Wallet Disconnected</p>
+                        <button id="connectWallet" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-6 rounded-lg text-xs">Connect MetaMask</button>
                     </div>
-                    
                     <div class="space-y-4">
-                        <input type="text" id="escrowAddress" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm outline-none focus:ring-1 focus:ring-orange-500 font-mono" placeholder="Contract Address (0x...)">
+                        <input type="text" id="escrowAddress" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm outline-none font-mono" placeholder="Contract Address (0x...)">
                         <div class="flex gap-3">
-                            <button onclick="releaseFunds()" class="flex-1 bg-gray-700 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl text-sm transition-all shadow-md">
-                                Release Funds
-                            </button>
-                            <button onclick="refundClient()" class="flex-1 bg-gray-700 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-xl text-sm transition-all shadow-md">
-                                Refund Client
-                            </button>
+                            <button onclick="releaseFunds()" class="flex-1 bg-gray-700 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-xl text-sm">Release</button>
+                            <button onclick="refundClient()" class="flex-1 bg-gray-700 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-xl text-sm">Refund</button>
                         </div>
                     </div>
-                </div>
-                <div class="mt-8 pt-4 border-t border-gray-700/50 text-center">
-                    <p class="text-[10px] text-gray-600 uppercase tracking-widest">Best for Global / Non-Bank Clients</p>
                 </div>
             </section>
 
-            <!-- RIGHT: Bank & Card Portal (Primary Option) -->
-            <section class="bg-gray-800 p-8 rounded-2xl border-2 border-blue-500/30 shadow-2xl relative overflow-hidden flex flex-col justify-between">
-                <div class="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-4 py-1 rounded-bl-lg uppercase tracking-widest">Primary</div>
+            <!-- RIGHT: Bank & Card Portal (WITH LOCAL EDITING) -->
+            <section id="bankPortal" class="bg-gray-800 p-8 rounded-2xl border-2 border-blue-500/30 shadow-2xl relative flex flex-col justify-between">
+                <div class="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-4 py-1 rounded-bl-lg uppercase">Primary</div>
+                
                 <div>
-                    <h2 class="text-2xl font-bold mb-6 flex items-center text-white">
-                        <span class="mr-3 text-3xl">🏦</span> Bank & Card Portal
-                    </h2>
-                    <p class="text-sm text-gray-400 mb-8">Professional payment details for traditional businesses and credit card payments.</p>
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold flex items-center text-white">
+                            <span class="mr-3 text-3xl">🏦</span> Bank & Card
+                        </h2>
+                        <button id="editProfileBtn" onclick="toggleEditMode()" class="text-blue-400 text-xs hover:underline">Edit Private Details</button>
+                    </div>
                     
                     <div class="space-y-6">
                         <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
-                            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Your Transfer Details</h3>
+                            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 italic">Stored on this device only</h3>
                             <div class="space-y-3 text-sm">
                                 <div class="flex justify-between border-b border-gray-800 pb-2">
                                     <span class="text-gray-500">Holder:</span>
-                                    <span id="bankHolder" class="font-medium">Freelancer Name</span>
+                                    <span class="view-item font-medium" id="bankHolder">Freelancer Name</span>
+                                    <input type="text" class="edit-item bg-gray-800 border border-blue-500 rounded px-2" id="editHolder">
                                 </div>
                                 <div class="flex justify-between border-b border-gray-800 pb-2">
                                     <span class="text-gray-500">Account:</span>
-                                    <span id="bankAccount" class="font-mono text-xs">XXXX XXXX XXXX</span>
+                                    <span class="view-item font-mono text-xs" id="bankAccount">XXXX XXXX XXXX</span>
+                                    <input type="text" class="edit-item bg-gray-800 border border-blue-500 rounded px-2 text-xs" id="editAccount">
                                 </div>
                                 <div class="flex justify-between border-b border-gray-800 pb-2">
                                     <span class="text-gray-500">SWIFT/BIC:</span>
-                                    <span id="bankSwift" class="font-mono text-xs">XXXXXXXX</span>
+                                    <span class="view-item font-mono text-xs" id="bankSwift">XXXXXXXX</span>
+                                    <input type="text" class="edit-item bg-gray-800 border border-blue-500 rounded px-2 text-xs" id="editSwift">
                                 </div>
                             </div>
-                            <button onclick="copyBankDetails()" class="mt-4 w-full text-blue-400 text-xs font-bold py-2 border border-blue-500/20 rounded-lg hover:bg-blue-500/10 transition-colors flex justify-center items-center">
-                                <span class="mr-2">📋</span> Copy Bank Packet
-                            </button>
+                            <button onclick="copyBankDetails()" class="view-item mt-4 w-full text-blue-400 text-xs font-bold py-2 border border-blue-500/20 rounded-lg hover:bg-blue-500/10">📋 Copy Details</button>
                         </div>
 
                         <div class="bg-gray-900 p-5 rounded-xl border border-gray-700">
-                            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Direct Checkout Link</h3>
-                            <input type="text" id="payLink" class="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-xs mb-4 font-mono text-blue-300" value="https://wise.com/pay/me/yourlink" readonly>
-                            <button onclick="copyPayLink()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl text-sm transition duration-200 shadow-md">
-                                Copy Payment Link
-                            </button>
+                            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Checkout Link</h3>
+                            <span class="view-item text-xs text-blue-300 font-mono break-all" id="viewPayLink">https://wise.com/pay/me/yourlink</span>
+                            <input type="text" class="edit-item w-full bg-gray-800 border border-blue-500 rounded p-2 text-xs text-blue-300" id="editPayLink">
+                            <button onclick="copyPayLink()" class="view-item mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl text-sm transition shadow-md">Copy Link</button>
                         </div>
                     </div>
-                </div>
-                <div class="mt-8 pt-4 border-t border-gray-700/50 text-center">
-                    <p class="text-[10px] text-gray-600 uppercase tracking-widest">Recommended for Most Clients</p>
+                    
+                    <button id="saveProfileBtn" onclick="saveLocalProfile()" class="edit-item mt-6 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl text-sm">Save to this Device</button>
                 </div>
             </section>
-
         </div>
 
         <footer class="mt-16 pt-8 border-t border-gray-800 text-center text-gray-500 text-xs">
-            <p>&copy; 2026 Sovereign-Gig • Built for Independent Professionals</p>
+            <p>&copy; 2026 Sovereign-Gig • Private Local Storage Mode</p>
         </footer>
     </div>
 
     <script src="src/app.js"></script>
 </body>
 </html>
-< ! - -   L a s t   U p d a t e d :   2 0 2 6 - 0 6 - 0 5   - - >  
- 

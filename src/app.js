@@ -1,131 +1,92 @@
-// Sovereign-Gig Web App - Fiat Primary Core
+// Sovereign-Gig Core Logic with Local Privacy
 
 const freelancerProfile = {
     min_budget: 500,
     preferred_tech: ["python", "react", "solidity", "ai", "node", "web3"],
-    dealbreakers: ["unpaid", "equity only", "homework", "test task", "logo"],
-    payment_preferences: {
-        primary: "Bank Transfer / Stripe",
-        secondary: "USDC (Stablecoin)"
+    dealbreakers: ["unpaid", "equity only", "homework", "test task", "logo"]
+};
+
+// --- Local Storage Management ---
+document.addEventListener('DOMContentLoaded', () => {
+    loadLocalProfile();
+});
+
+function loadLocalProfile() {
+    const saved = localStorage.getItem('sovereign_profile');
+    if (saved) {
+        const data = JSON.parse(saved);
+        document.getElementById('bankHolder').innerText = data.holder || 'Freelancer Name';
+        document.getElementById('bankAccount').innerText = data.account || 'XXXX XXXX XXXX';
+        document.getElementById('bankSwift').innerText = data.swift || 'XXXXXXXX';
+        document.getElementById('viewPayLink').innerText = data.payLink || 'https://wise.com/pay/me/yourlink';
     }
+}
+
+window.toggleEditMode = function() {
+    const portal = document.getElementById('bankPortal');
+    portal.classList.toggle('edit-mode');
+    
+    if (portal.classList.contains('edit-mode')) {
+        // Sync values from view to edit inputs
+        document.getElementById('editHolder').value = document.getElementById('bankHolder').innerText;
+        document.getElementById('editAccount').value = document.getElementById('bankAccount').innerText;
+        document.getElementById('editSwift').value = document.getElementById('bankSwift').innerText;
+        document.getElementById('editPayLink').value = document.getElementById('viewPayLink').innerText;
+    }
+};
+
+window.saveLocalProfile = function() {
+    const data = {
+        holder: document.getElementById('editHolder').value,
+        account: document.getElementById('editAccount').value,
+        swift: document.getElementById('editSwift').value,
+        payLink: document.getElementById('editPayLink').value
+    };
+    
+    localStorage.setItem('sovereign_profile', JSON.stringify(data));
+    loadLocalProfile();
+    toggleEditMode();
+    alert("Profile saved locally! This data is only visible on this device.");
 };
 
 // --- Signal Filter Logic ---
 window.analyzeSignal = function() {
     const input = document.getElementById('jobInput').value.toLowerCase();
     const resultDiv = document.getElementById('signalResult');
-    
-    if (!input) {
-        alert("Please paste a job description first.");
-        return;
-    }
+    if (!input) return alert("Please paste a job description first.");
 
     let score = 50; 
     let notes = [];
 
-    // Tech Match
     const matches = freelancerProfile.preferred_tech.filter(t => input.includes(t));
-    if (matches.length > 0) {
-        score += 30;
-        notes.push(`✅ Matches: ${matches.join(', ')}`);
-    }
+    if (matches.length > 0) { score += 30; notes.push(`✅ Matches: ${matches.join(', ')}`); }
 
-    // Dealbreakers
     const violations = freelancerProfile.dealbreakers.filter(d => input.includes(d));
-    if (violations.length > 0) {
-        score -= 60;
-        notes.push(`❌ Dealbreaker found: ${violations.join(', ')}`);
-    }
+    if (violations.length > 0) { score -= 60; notes.push(`❌ Dealbreaker: ${violations.join(', ')}`); }
 
-    // Payment Intent Detection
-    if (input.includes("crypto") || input.includes("eth") || input.includes("bitcoin")) {
-        notes.push("💡 Note: Client mentioned Crypto.");
-    } else {
-        notes.push("💵 Note: Standard Fiat payment likely.");
-    }
-
-    // Display Results
     resultDiv.classList.remove('hidden', 'animate-pulse');
     resultDiv.className = `mt-4 p-4 rounded-xl border-2 ${score >= 70 ? 'bg-green-900/30 border-green-500' : (score >= 40 ? 'bg-yellow-900/30 border-yellow-500' : 'bg-red-900/30 border-red-500')}`;
-    
-    resultDiv.innerHTML = `
-        <h3 class="font-bold text-lg mb-2">Signal Score: ${Math.max(0, Math.min(100, score))}/100</h3>
-        <ul class="text-xs space-y-1 opacity-90">
-            ${notes.map(n => `<li>${n}</li>`).join('')}
-        </ul>
-        <div class="mt-4 pt-3 border-t border-white/10 text-sm font-bold">
-            ${score >= 70 ? '🚀 HIGH SIGNAL - Send Proposal & Bank Details.' : (score >= 40 ? '🤔 MEDIUM SIGNAL - Ask for budget first.' : '🛑 LOW SIGNAL - Likely a waste of time.')}
-        </div>
-    `;
+    resultDiv.innerHTML = `<h3 class="font-bold">Score: ${Math.max(0, Math.min(100, score))}/100</h3><ul class="text-xs mt-2">${notes.map(n => `<li>${n}</li>`).join('')}</ul>`;
 };
 
-// --- Fiat Helpers ---
+// --- Helpers ---
 window.copyBankDetails = function() {
-    const holder = document.getElementById('bankHolder').innerText;
-    const account = document.getElementById('bankAccount').innerText;
-    const swift = document.getElementById('bankSwift').innerText;
-    const text = `Bank Transfer Details:\nHolder: ${holder}\nIBAN/Account: ${account}\nSWIFT/BIC: ${swift}`;
+    const text = `Bank Transfer Details:\nHolder: ${document.getElementById('bankHolder').innerText}\nAccount: ${document.getElementById('bankAccount').innerText}\nSWIFT: ${document.getElementById('bankSwift').innerText}`;
     navigator.clipboard.writeText(text);
-    alert("Bank details copied to clipboard!");
+    alert("Bank details copied!");
 };
 
 window.copyPayLink = function() {
-    const link = document.getElementById('payLink').value;
-    navigator.clipboard.writeText(link);
+    navigator.clipboard.writeText(document.getElementById('viewPayLink').innerText);
     alert("Payment link copied!");
 };
 
-// --- Web3 / Escrow Logic ---
+// --- Web3 ---
 let signer;
-const ABI = [
-    "function releaseFunds() external",
-    "function refundClient() external"
-];
-
 document.getElementById('connectWallet').onclick = async () => {
     if (window.ethereum) {
-        try {
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            signer = await provider.getSigner();
-            const address = await signer.getAddress();
-            document.getElementById('walletStatus').innerText = `Connected: ${address.substring(0,6)}...${address.substring(38)}`;
-            document.getElementById('connectWallet').innerText = "Linked";
-            document.getElementById('connectWallet').className = "bg-green-600 text-white font-bold py-2 px-6 rounded-lg text-xs";
-        } catch (err) {
-            console.error(err);
-            alert("Connection failed.");
-        }
-    } else {
-        alert("MetaMask not found! Open in MetaMask Browser on Mobile.");
-    }
-};
-
-window.releaseFunds = async function() {
-    const address = document.getElementById('escrowAddress').value;
-    if (!ethers.isAddress(address)) return alert("Invalid Contract Address");
-    if (!signer) return alert("Please connect wallet first");
-
-    try {
-        const contract = new ethers.Contract(address, ABI, signer);
-        const tx = await contract.releaseFunds();
-        alert("Release transaction sent! Hash: " + tx.hash);
-    } catch (err) {
-        console.error(err);
-        alert("Error: " + (err.reason || err.message));
-    }
-};
-
-window.refundClient = async function() {
-    const address = document.getElementById('escrowAddress').value;
-    if (!ethers.isAddress(address)) return alert("Invalid Contract Address");
-    if (!signer) return alert("Please connect wallet first");
-
-    try {
-        const contract = new ethers.Contract(address, ABI, signer);
-        const tx = await contract.refundClient();
-        alert("Refund transaction sent! Hash: " + tx.hash);
-    } catch (err) {
-        console.error(err);
-        alert("Error: " + (err.reason || err.message));
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        signer = await provider.getSigner();
+        document.getElementById('walletStatus').innerText = `Connected: ${(await signer.getAddress()).substring(0,6)}...`;
     }
 };
