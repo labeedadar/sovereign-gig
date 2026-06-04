@@ -1,4 +1,4 @@
-// Sovereign-Gig Core Logic with Local Privacy
+// Sovereign-Gig Core Logic - Robust Version
 
 const freelancerProfile = {
     min_budget: 500,
@@ -6,28 +6,37 @@ const freelancerProfile = {
     dealbreakers: ["unpaid", "equity only", "homework", "test task", "logo"]
 };
 
-// --- Local Storage Management ---
+// --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
+    console.log("Sovereign-Gig: DOM Loaded. Initializing...");
     loadLocalProfile();
+    setupWeb3();
 });
 
+// --- Local Storage Management ---
 function loadLocalProfile() {
-    const saved = localStorage.getItem('sovereign_profile');
-    if (saved) {
-        const data = JSON.parse(saved);
-        document.getElementById('bankHolder').innerText = data.holder || 'Freelancer Name';
-        document.getElementById('bankAccount').innerText = data.account || 'XXXX XXXX XXXX';
-        document.getElementById('bankSwift').innerText = data.swift || 'XXXXXXXX';
-        document.getElementById('viewPayLink').innerText = data.payLink || 'https://wise.com/pay/me/yourlink';
+    try {
+        const saved = localStorage.getItem('sovereign_profile');
+        if (saved) {
+            const data = JSON.parse(saved);
+            document.getElementById('bankHolder').innerText = data.holder || 'Freelancer Name';
+            document.getElementById('bankAccount').innerText = data.account || 'XXXX XXXX XXXX';
+            document.getElementById('bankSwift').innerText = data.swift || 'XXXXXXXX';
+            document.getElementById('viewPayLink').innerText = data.payLink || 'https://wise.com/pay/me/yourlink';
+        }
+    } catch (e) {
+        console.error("Failed to load profile from LocalStorage", e);
     }
 }
 
 window.toggleEditMode = function() {
+    console.log("Toggling Edit Mode...");
     const portal = document.getElementById('bankPortal');
+    if (!portal) return;
+    
     portal.classList.toggle('edit-mode');
     
     if (portal.classList.contains('edit-mode')) {
-        // Sync values from view to edit inputs
         document.getElementById('editHolder').value = document.getElementById('bankHolder').innerText;
         document.getElementById('editAccount').value = document.getElementById('bankAccount').innerText;
         document.getElementById('editSwift').value = document.getElementById('bankSwift').innerText;
@@ -36,24 +45,28 @@ window.toggleEditMode = function() {
 };
 
 window.saveLocalProfile = function() {
-    const data = {
-        holder: document.getElementById('editHolder').value,
-        account: document.getElementById('editAccount').value,
-        swift: document.getElementById('editSwift').value,
-        payLink: document.getElementById('editPayLink').value
-    };
-    
-    localStorage.setItem('sovereign_profile', JSON.stringify(data));
-    loadLocalProfile();
-    toggleEditMode();
-    alert("Profile saved locally! This data is only visible on this device.");
+    try {
+        const data = {
+            holder: document.getElementById('editHolder').value,
+            account: document.getElementById('editAccount').value,
+            swift: document.getElementById('editSwift').value,
+            payLink: document.getElementById('editPayLink').value
+        };
+        
+        localStorage.setItem('sovereign_profile', JSON.stringify(data));
+        loadLocalProfile();
+        toggleEditMode();
+        alert("Profile saved locally! Data stays on this device.");
+    } catch (e) {
+        alert("Error saving profile: " + e.message);
+    }
 };
 
-// --- Signal Filter Logic ---
+// --- Signal Filter ---
 window.analyzeSignal = function() {
     const input = document.getElementById('jobInput').value.toLowerCase();
     const resultDiv = document.getElementById('signalResult');
-    if (!input) return alert("Please paste a job description first.");
+    if (!input) return alert("Please paste text first.");
 
     let score = 50; 
     let notes = [];
@@ -81,12 +94,46 @@ window.copyPayLink = function() {
     alert("Payment link copied!");
 };
 
-// --- Web3 ---
+// --- Web3 Support ---
 let signer;
-document.getElementById('connectWallet').onclick = async () => {
-    if (window.ethereum) {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        signer = await provider.getSigner();
-        document.getElementById('walletStatus').innerText = `Connected: ${(await signer.getAddress()).substring(0,6)}...`;
-    }
+function setupWeb3() {
+    const connBtn = document.getElementById('connectWallet');
+    if (!connBtn) return;
+
+    connBtn.onclick = async () => {
+        if (window.ethereum) {
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                signer = await provider.getSigner();
+                const addr = await signer.getAddress();
+                document.getElementById('walletStatus').innerText = `Connected: ${addr.substring(0,6)}...`;
+            } catch (err) {
+                console.error("Wallet connection failed", err);
+            }
+        } else {
+            alert("MetaMask not detected.");
+        }
+    };
+}
+
+window.releaseFunds = async function() {
+    if (!signer) return alert("Connect wallet first.");
+    const addr = document.getElementById('escrowAddress').value;
+    if (!ethers.isAddress(addr)) return alert("Invalid address.");
+    try {
+        const contract = new ethers.Contract(addr, ["function releaseFunds() external"], signer);
+        await contract.releaseFunds();
+        alert("Transaction sent!");
+    } catch (e) { alert("Error: " + e.message); }
+};
+
+window.refundClient = async function() {
+    if (!signer) return alert("Connect wallet first.");
+    const addr = document.getElementById('escrowAddress').value;
+    if (!ethers.isAddress(addr)) return alert("Invalid address.");
+    try {
+        const contract = new ethers.Contract(addr, ["function refundClient() external"], signer);
+        await contract.refundClient();
+        alert("Transaction sent!");
+    } catch (e) { alert("Error: " + e.message); }
 };
